@@ -601,42 +601,67 @@ def _display_cost_breakdown(
     cost_estimates: List[dict], total_cost: float, config: dict
 ) -> None:
     """Display cost breakdown table"""
-    per_model_threshold = config.get("warning_threshold_per_model", 5.0)
+    per_model_threshold = config.get("warning_threshold_per_model", 1.0)
+    complexity_threshold = config.get("complexity_warning_threshold", 60)
 
     table = Table(title="Cost Estimate Breakdown", show_header=True, header_style="bold cyan")
     table.add_column("Model", style="cyan")
-    table.add_column("Est. Cost", justify="right")
+    table.add_column("Current Cost", justify="right")
+    table.add_column("At Scale", justify="right")  # NEW
     table.add_column("Est. Time", justify="right")
     table.add_column("Complexity", justify="center")
     table.add_column("Status", justify="center")
 
+    expensive_models = []  # Track models that need optimization
+    
     for est in cost_estimates:
         cost = est["estimated_cost"]
+        scaled_cost = est.get("scaled_cost", cost)
         time_str = f"{est['estimated_time_seconds']:.1f}s"
+        is_expensive = est.get("is_expensive_pattern", False)
 
-        # Color code based on threshold
-        if cost > per_model_threshold:
-            cost_str = f"[red bold]${cost:.2f}[/red bold]"
-            status = "[red]⚠️[/red]"
-        elif cost > per_model_threshold * 0.7:
+        # Determine status based on scaled cost and complexity
+        if is_expensive:
+            status = "[red]⚠️ OPTIMIZE[/red]"
+            expensive_models.append(est)
+        elif scaled_cost > 10.0:
+            status = "[yellow]⚠️ WATCH[/yellow]"
+            expensive_models.append(est)
+        elif cost > per_model_threshold:
             cost_str = f"[yellow]${cost:.2f}[/yellow]"
             status = "[yellow]○[/yellow]"
         else:
-            cost_str = f"[green]${cost:.2f}[/green]"
             status = "[green]✓[/green]"
+
+        # Color code current cost
+        if cost > per_model_threshold * 2:
+            cost_str = f"[red bold]${cost:.2f}[/red bold]"
+        elif cost > per_model_threshold:
+            cost_str = f"[yellow]${cost:.2f}[/yellow]"
+        else:
+            cost_str = f"[green]${cost:.2f}[/green]"
+        
+        # Color code scaled cost
+        if scaled_cost > 50.0:
+            scaled_str = f"[red bold]${scaled_cost:.2f}[/red bold]"
+        elif scaled_cost > 10.0:
+            scaled_str = f"[yellow]${scaled_cost:.2f}[/yellow]"
+        else:
+            scaled_str = f"[green]${scaled_cost:.2f}[/green]"
 
         # Complexity indicator
         complexity = est.get("complexity_score", 0)
-        if complexity > 80:
-            complexity_str = "[red]High[/red]"
+        if complexity > complexity_threshold:
+            complexity_str = f"[red]{complexity}[/red]"
         elif complexity > 50:
-            complexity_str = "[yellow]Med[/yellow]"
+            complexity_str = f"[yellow]{complexity}[/yellow]"
         else:
-            complexity_str = "[green]Low[/green]"
+            complexity_str = f"[green]{complexity}[/green]"
 
         table.add_row(
             est["model_name"],
             cost_str,
+            scaled_str,
             time_str,
             complexity_str,
             status,
@@ -644,15 +669,30 @@ def _display_cost_breakdown(
 
     # Add total row
     table.add_section()
+    total_scaled = sum(est.get("scaled_cost", est["estimated_cost"]) for est in cost_estimates)
     table.add_row(
         "[bold]TOTAL[/bold]",
         f"[bold]${total_cost:.2f}[/bold]",
+        f"[bold]${total_scaled:.2f}[/bold]",
         "",
         "",
         "",
     )
 
     console.print(table)
+    
+    # Show optimization recommendations for expensive models
+    if expensive_models:
+        console.print()
+        console.print(Panel(
+            f"[bold yellow]⚠️  {len(expensive_models)} model(s) need optimization[/bold yellow]\n\n"
+            "These queries have expensive patterns that will be costly on production data:\n" +
+            "\n".join([f"  • {m['model_name']} (complexity: {m['complexity_score']}, scaled cost: ${m.get('scaled_cost', 0):.2f})"
+                      for m in expensive_models[:5]]),
+            title="[bold red]Optimization Recommendations[/bold red]",
+            border_style="yellow"
+        ))
+        console.print("\nRun 'dbt-cost-guard analyze -m MODEL_NAME' for detailed recommendations.")
 
 
 def _run_dbt_command(cmd: List[str]) -> None:

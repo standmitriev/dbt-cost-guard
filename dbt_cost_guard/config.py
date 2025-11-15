@@ -29,14 +29,16 @@ def load_config(
     """
     config = {
         "cost_per_credit": 3.0,  # Default Snowflake cost
-        "warning_threshold_per_model": 5.0,
+        "warning_threshold_per_model": 1.0,  # Lower threshold: $1 (more sensitive)
         "warning_threshold_total_run": 5.0,
+        "complexity_warning_threshold": 60,  # Warn on queries with complexity > 60
         "enabled": True,
         "estimation": {
             "use_explain_plans": True,
             "use_historical_data": True,
             "cache_detection": True,
             "history_days": 30,
+            "warn_on_complexity": True,  # Enable complexity-based warnings
         },
         "model_overrides": {},
         "skip_models": [],

@@ -277,6 +277,19 @@ class CostEstimator:
             # Likely to hit cache - reduce cost significantly
             estimated_cost *= 0.1
             logger.debug(f"[{model_name}] Cache hit likely, cost reduced by 90%")
+        
+        # Calculate "scaled cost" - what this WOULD cost on 100x data
+        # This helps identify expensive patterns even on small datasets
+        scaled_time = estimated_time * max(1.0, (complexity_score / 20.0))  # Scale by complexity
+        scaled_billable_time = self._apply_billing_rules(scaled_time)
+        scaled_cost = (scaled_billable_time / 3600.0) * credits_per_hour * cost_per_credit
+        
+        # Determine if this model is "expensive" based on patterns
+        is_expensive_pattern = (
+            complexity_score > self.config.get("complexity_warning_threshold", 60)
+            or scaled_cost > 10.0  # Would cost > $10 at scale
+            or sql.upper().count("CROSS JOIN") > 0  # Cartesian product
+        )
 
         return {
             "model_name": model_name,
@@ -287,6 +300,8 @@ class CostEstimator:
             "warehouse_size": warehouse_size,
             "credits_per_hour": credits_per_hour,
             "cache_hit_probability": cache_probability,
+            "scaled_cost": scaled_cost,  # NEW: What it would cost at scale
+            "is_expensive_pattern": is_expensive_pattern,  # NEW: Flag for optimization
             "skipped": False,
         }
     
