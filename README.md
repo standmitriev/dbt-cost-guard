@@ -13,7 +13,7 @@ Data teams running dbt on Snowflake face a common problem: **unexpected costs**.
 
 **dbt-cost-guard helps you:**
 - 💰 **Estimate costs before running** - Know what you'll spend before executing
-- 📊 **Project long-term costs** - See annual costs based on run frequency
+- 📊 **Project long-term costs** - See annual costs based on run frequency ($17K-$420K/year!)
 - ⚠️ **Get warnings** - Automatic alerts for expensive operations
 - 🎯 **Optimize warehouse selection** - Find cost savings opportunities
 - 📈 **Track spending trends** - Understand where your money goes
@@ -24,12 +24,22 @@ Data teams running dbt on Snowflake face a common problem: **unexpected costs**.
 $ dbt-cost-guard --project-dir my_project estimate
 
 ✓ Found 15 models
-Total Cost: $48.00 per run
+
+Cost Estimate Breakdown
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Model            ┃ Est. Cost ┃ Est. Time ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ fct_orders       │     $3.20 │     12.5s │
+│ fct_customers    │     $8.40 │     28.3s │
+│ ...              │       ... │       ... │
+├──────────────────┼───────────┼───────────┤
+│ TOTAL            │    $48.00 │           │
+└──────────────────┴───────────┴───────────┘
 
 💰 Long-Term Cost Projections:
-  Daily (1×):    $17,520/year
-  Twice Daily:   $35,040/year
-  Hourly (24×):  $420,480/year  ⚠️
+┃ Daily (1×)    ┃ $48.00     ┃ $17,520/year   ┃
+┃ Twice Daily   ┃ $96.00/day ┃ $35,040/year   ┃
+┃ Hourly (24×)  ┃ $1,152/day ┃ $420,480/year  ┃
 
 💵 Cost Optimization Opportunity:
   Potential Annual Savings: $15,330
@@ -43,15 +53,7 @@ Total Cost: $48.00 per run
 ### Installation
 
 ```bash
-pip install dbt-cost-guard
-```
-
-Or install from source:
-
-```bash
-git clone https://github.com/standmitriev/dbt-cost-guard.git
-cd dbt-cost-guard
-pip install -e .
+pip install git+https://github.com/standmitriev/dbt-cost-guard.git
 ```
 
 ### Basic Usage
@@ -65,10 +67,9 @@ dbt-cost-guard --project-dir my_project run
 
 # Analyze a specific model
 dbt-cost-guard --project-dir my_project analyze -m my_model
-
-# Show configuration
-dbt-cost-guard --project-dir my_project config
 ```
+
+For detailed setup instructions, see [INSTALLATION.md](INSTALLATION.md).
 
 ## 📊 Features
 
@@ -77,23 +78,23 @@ dbt-cost-guard --project-dir my_project config
 dbt-cost-guard uses multiple estimation methods for maximum accuracy:
 
 1. **EXPLAIN Plans** - Analyzes Snowflake's query execution plans
-2. **Historical Data** - Learns from past query performance
+2. **Historical Data** - Learns from past query performance  
 3. **Heuristics** - Intelligent complexity scoring (JOINs, window functions, etc.)
 4. **Cache Detection** - Identifies potential cache hits
-5. **Billing Rules** - Applies Snowflake's actual billing (1-minute minimum, per-minute charges)
+5. **Billing Rules** - Applies Snowflake's actual billing (1-minute minimum)
 
 ### 💰 Long-Term Cost Projections
 
 See how costs add up over time with different run frequencies:
-- Daily, weekly, monthly projections
-- Annual cost calculations
+- Daily, weekly, monthly, annual projections
 - Savings recommendations
+- Warehouse optimization suggestions
 
 ### ⚠️ Warning System
 
 Get automatic warnings for:
-- Expensive individual models
-- High total run costs
+- Expensive individual models (> $5)
+- High total run costs (> $20)
 - Long-running queries
 - Complex operations that might be optimized
 
@@ -119,106 +120,23 @@ model_overrides:
 skip_models:
   - "test_*"
   - "*_temp"
-
-estimation:
-  use_explain_plans: true
-  use_historical_data: true
-  cache_detection: true
-  history_days: 30
 ```
 
 ## 📖 Documentation
 
-- [Installation Guide](INSTALLATION.md)
-- [Usage Guide](USAGE.md)
-- [Configuration](README.md#-flexible-configuration)
-- [Architecture](ARCHITECTURE.md)
-- [Contributing](CONTRIBUTING.md)
-- [Improvements & Roadmap](IMPROVEMENTS.md)
-- [Real-World Usage](REAL_WORLD_USAGE.md)
-
-## 🛠️ Setup
-
-### 1. Configure Snowflake Connection
-
-Create a `profiles.yml` in your dbt project (or use existing dbt profiles):
-
-```yaml
-my_project:
-  target: dev
-  outputs:
-    dev:
-      type: snowflake
-      account: YOUR_ACCOUNT
-      user: YOUR_USERNAME
-      password: YOUR_PASSWORD
-      role: YOUR_ROLE
-      database: YOUR_DATABASE
-      warehouse: YOUR_WAREHOUSE
-      schema: YOUR_SCHEMA
-      threads: 4
-```
-
-### 2. (Optional) Create Configuration File
-
-Create `.dbt-cost-guard.yml` in your project root:
-
-```yaml
-version: 1
-
-cost_per_credit: 3.00
-
-thresholds:
-  per_model_dollars: 5.00
-  total_run_dollars: 20.00
-
-estimation:
-  use_explain_plans: true
-  use_historical_data: true
-  cache_detection: true
-```
-
-### 3. Run Estimation
-
-```bash
-dbt-cost-guard --project-dir my_project estimate
-```
-
-## 🎓 Example Projects
-
-This repository includes two example projects:
-
-### `example_project/`
-Simple dbt project demonstrating basic cost estimation
-
-### `test_project/`
-Comprehensive test project with:
-- Multiple databases (SALES_DB, ANALYTICS_DB, REFERENCE_DB)
-- Cross-database queries
-- Complex fact models
-- 215M rows of test data
-- Models ranging from simple to extremely expensive
-
-## 🔬 Testing & Validation
-
-Validate estimates against actual Snowflake costs:
-
-```bash
-# Get estimate
-dbt-cost-guard --project-dir test_project analyze -m my_model
-
-# Run the model
-cd test_project && dbt run --select my_model
-
-# Check actual cost in Snowflake
-# (Use provided SQL queries in check_actual_cost.sql)
-```
-
-See [RUN_AND_VALIDATE.md](RUN_AND_VALIDATE.md) for complete validation guide.
+- **[INSTALLATION.md](INSTALLATION.md)** - Detailed installation guide
+- **[SETUP.md](SETUP.md)** - Quick start guide
+- **[USAGE.md](USAGE.md)** - Command reference
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute
+- **[docs/ROADMAP.md](docs/ROADMAP.md)** - Future enhancements
+- **[docs/REAL_WORLD_USAGE.md](docs/REAL_WORLD_USAGE.md)** - CI/CD integration examples
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Technical architecture
 
 ## 💡 Use Cases
 
 ### CI/CD Integration
+
+Prevent expensive deployments:
 
 ```yaml
 # .github/workflows/dbt-cost-check.yml
@@ -230,6 +148,8 @@ See [RUN_AND_VALIDATE.md](RUN_AND_VALIDATE.md) for complete validation guide.
 
 ### Pre-commit Hook
 
+Catch expensive queries before commit:
+
 ```yaml
 # .pre-commit-config.yaml
 - repo: local
@@ -238,7 +158,6 @@ See [RUN_AND_VALIDATE.md](RUN_AND_VALIDATE.md) for complete validation guide.
       name: dbt Cost Guard
       entry: dbt-cost-guard estimate
       language: system
-      pass_filenames: false
 ```
 
 ### Airflow Integration
@@ -254,13 +173,14 @@ if cost > threshold:
     raise AirflowSkipException("Cost too high!")
 ```
 
-## 📈 Accuracy
+See [docs/REAL_WORLD_USAGE.md](docs/REAL_WORLD_USAGE.md) for more examples.
 
-Based on validation with real Snowflake queries:
+## 🎓 Example Projects
 
-- **Cost Accuracy**: ✅ Exact match for billing (1-minute minimum correctly applied)
-- **Time Estimates**: ⚠️ Conservative (better to overestimate than underestimate)
-- **Best For**: Preventing expensive mistakes, warehouse optimization, cost awareness
+This repository includes example projects to help you get started:
+
+- **[example_project/](example_project/)** - Simple dbt project demonstrating basic cost estimation
+- **[test_project/](test_project/)** - Advanced examples with cross-database queries and complex models
 
 ## 🤝 Contributing
 
@@ -269,23 +189,21 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 ### Development Setup
 
 ```bash
-# Clone repository
 git clone https://github.com/standmitriev/dbt-cost-guard.git
 cd dbt-cost-guard
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install in development mode
+source venv/bin/activate
 pip install -e ".[dev]"
-
-# Run tests
 pytest
-
-# Run with coverage
-pytest --cov=dbt_cost_guard --cov-report=html
 ```
+
+## 📈 Accuracy
+
+Based on validation with real Snowflake queries:
+
+- **Cost Accuracy**: ✅ Exact match for billing (1-minute minimum correctly applied)
+- **Time Estimates**: ⚠️ Conservative (better to overestimate than underestimate)
+- **Best For**: Preventing expensive mistakes, warehouse optimization, cost awareness
 
 ## 🗺️ Roadmap
 
@@ -294,10 +212,9 @@ Future enhancements:
 - Machine learning-based estimation
 - Historical cost tracking database
 - Cost anomaly detection
-- Team cost allocation
 - Web UI dashboard
 
-See [IMPROVEMENTS.md](IMPROVEMENTS.md) for detailed roadmap.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for detailed plans.
 
 ## 📄 License
 
@@ -307,22 +224,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 Built for data teams who want to:
 - Stop worrying about surprise Snowflake bills
-- Make informed decisions about warehouse sizing
+- Make informed decisions about warehouse sizing  
 - Optimize their dbt workflows
 - Save money while maintaining performance
 
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/standmitriev/dbt-cost-guard/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/standmitriev/dbt-cost-guard/discussions)
-
-## ⭐ Star History
+## ⭐ Star This Project
 
 If dbt-cost-guard helps you save money, please give it a star! ⭐
 
 ---
 
-Made with ❤️ for the dbt community
-
 **Save money. Run confident. Use dbt-cost-guard.**
-
