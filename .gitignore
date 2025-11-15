@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+*.cover
+.cache
+
+# dbt
+target/
+dbt_packages/
+logs/
+*.log
+
+# Snowflake & Credentials (IMPORTANT!)
+.snowflake/
+profiles.yml
+**/profiles.yml
+!profiles.yml.example
+*.credentials
+*.env
+.env
+.env.local
+*.secret
+secrets/
+
+# Config (may contain secrets)
+profiles.yml
+*.credentials
+
+# Distribution
+*.whl
+*.tar.gz
+
+# Documentation builds
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.bak
+.temp/

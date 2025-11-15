@@ -1,0 +1,15 @@
+example_project:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: YOUR_ACCOUNT  # e.g., xy12345.us-east-1
+      user: YOUR_USERNAME
+      password: YOUR_PASSWORD
+      role: YOUR_ROLE  # e.g., ACCOUNTADMIN
+      database: DEMO_DB
+      warehouse: COMPUTE_WH
+      schema: DBT_COST_GUARD_DEMO
+      threads: 4
+      client_session_keep_alive: False
+

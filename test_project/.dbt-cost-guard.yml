@@ -1,0 +1,96 @@
+version: 1
+
+# ============================================================================
+# DEMO CONFIGURATION FOR $20+ COST ESTIMATES
+# ============================================================================
+#
+# This config simulates running on a LARGE or X-LARGE warehouse
+# to demonstrate high-cost query detection without actually needing
+# to provision expensive warehouses.
+#
+# For production, dbt-cost-guard will auto-detect your warehouse size.
+# ============================================================================
+
+# Warehouse configuration
+# Uncomment ONE of these to simulate different warehouse sizes:
+
+# X-Small (default) - $3/hour = $0.05/minute
+# warehouse_credits_per_hour: 1
+
+# Small - $6/hour = $0.10/minute
+# warehouse_credits_per_hour: 2
+
+# Medium - $12/hour = $0.20/minute
+# warehouse_credits_per_hour: 4
+
+# Large - $24/hour = $0.40/minute (good for $5-10 demos)
+# warehouse_credits_per_hour: 8
+
+# X-Large - $48/hour = $0.80/minute (good for $10-20 demos)
+# warehouse_credits_per_hour: 16
+
+# 2X-Large - $96/hour = $1.60/minute (good for $20-40 demos)
+# warehouse_credits_per_hour: 32
+
+# 3X-Large - $192/hour = $3.20/minute (good for $40+ demos)
+warehouse_credits_per_hour: 64
+
+# Cost per credit (standard Snowflake on-demand pricing)
+cost_per_credit: 3.00
+
+# Thresholds for warnings
+thresholds:
+  # Warn if any single model costs more than this
+  per_model_dollars: 5.00
+  
+  # Warn if the total run costs more than this
+  total_run_dollars: 20.00
+  
+  # Warn if any model takes longer than this (seconds)
+  per_model_seconds: 300  # 5 minutes
+  
+  # Warn if total run takes longer than this (seconds)
+  total_run_seconds: 1800  # 30 minutes
+
+# Model-specific overrides
+model_overrides:
+  # Allow expensive models that you know are necessary
+  "fct_customer_analytics_extreme":
+    per_model_dollars: 10.00
+    skip: false
+    
+  # Skip test models that are intentionally expensive
+  "fct_cartesian_nightmare":
+    skip: true
+    reason: "Intentionally expensive test model"
+  
+  "fct_ultra_expensive_demo":
+    skip: false  # Set to true to skip this in normal runs
+    per_model_dollars: 50.00  # Allow it to be expensive for demo
+
+# Skip patterns (glob-style matching)
+skip_models:
+  - "test_*"           # Skip all models starting with test_
+  - "*_nightmare"      # Skip all nightmare models
+  - "experimental.*"   # Skip all experimental schema models
+
+# Estimation settings
+estimation:
+  # Use EXPLAIN plans for more accurate estimates (recommended)
+  use_explain_plans: true
+  
+  # Use historical query data for learning (recommended)
+  use_historical_data: true
+  
+  # Check query cache for potential cost savings
+  cache_detection: true
+  
+  # Days of history to consider for learning
+  history_days: 30
+  
+  # Minimum confidence score for historical estimates (0-100)
+  min_confidence: 70
+  
+  # Apply Snowflake billing rules (1-minute minimum, round up)
+  apply_billing_rules: true
+

@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: raw
+    database: DEMO_DB
+    schema: RAW
+    tables:
+      - name: users
+        description: Raw user data
+      - name: orders
+        description: Raw order data
+      - name: products
+        description: Raw product data
+      - name: order_items
+        description: Raw order item data
+

@@ -1,0 +1,20 @@
+version: 1
+cost_per_credit: 4.5
+
+thresholds:
+  per_model_warning: 10.00
+  total_run_warning: 20.00
+
+model_overrides:
+  "fct_*":
+    threshold: 25.00
+
+skip_models:
+  - "test_*"
+
+estimation:
+  use_explain_plans: true
+  use_historical_data: true
+  cache_detection: true
+  history_days: 30
+

@@ -1,0 +1,53 @@
+name: 'dbt_cost_guard_test'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_cost_guard_test'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  cost_guard:
+    enabled: true
+    cost_per_credit: 3.0
+    warning_threshold_per_model: 10.0
+    warning_threshold_total_run: 50.0
+
+models:
+  dbt_cost_guard_test:
+    +materialized: table
+    
+    # Staging models - views for fast iteration
+    staging:
+      +materialized: view
+      +schema: staging
+    
+    # Intermediate models - ephemeral for cleanup
+    intermediate:
+      +materialized: ephemeral
+      +schema: intermediate
+    
+    # Mart models - tables for performance
+    marts:
+      +materialized: table
+      +schema: marts
+      
+      # Fact tables
+      facts:
+        +materialized: incremental
+        +unique_key: id
+        +on_schema_change: 'fail'
+      
+      # Dimension tables
+      dimensions:
+        +materialized: table
+

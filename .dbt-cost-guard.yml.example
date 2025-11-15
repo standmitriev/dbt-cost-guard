@@ -1,0 +1,43 @@
+# dbt-cost-guard configuration file
+# Place this file in your dbt project root directory as .dbt-cost-guard.yml
+
+version: 1
+
+# Snowflake cost settings
+cost_per_credit: 3.0
+warehouse_size: MEDIUM
+
+# Cost thresholds
+thresholds:
+  per_model_warning: 5.00      # Warn if single model costs more than $5
+  per_model_error: 50.00        # Error if single model costs more than $50
+  total_run_warning: 10.00      # Warn if total run costs more than $10
+  total_run_error: 100.00       # Error if total run costs more than $100
+
+# Model-specific overrides (uses glob patterns)
+model_overrides:
+  "fct_*":
+    threshold: 20.00
+    comment: "Fact tables are allowed to be more expensive"
+  
+  "staging.*":
+    threshold: 1.00
+    comment: "Staging models should be cheap"
+  
+  "dim_customers":
+    threshold: 15.00
+    comment: "Customer dimension is complex and expensive"
+
+# Estimation settings
+estimation:
+  use_explain_plans: true       # Use Snowflake EXPLAIN for better accuracy
+  use_historical_data: true     # Learn from query history
+  cache_detection: true         # Check for result cache hits
+  history_days: 30              # Days of history to analyze
+  
+# Optional: Disable cost checking for specific models
+skip_models:
+  - "test_*"
+  - "seeds.*"
+  - "snapshots.*"
+

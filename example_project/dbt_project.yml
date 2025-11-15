@@ -1,0 +1,30 @@
+name: 'example_project'
+version: '1.0.0'
+config-version: 2
+
+profile: 'example_project'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+vars:
+  cost_guard:
+    enabled: true
+    cost_per_credit: 3.0
+    warning_threshold_per_model: 5.0
+    warning_threshold_total_run: 5.0
+
+models:
+  example_project:
+    +materialized: table
+    staging:
+      +materialized: view
+

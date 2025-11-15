@@ -1,0 +1,61 @@
+version: 2
+
+sources:
+  # Sales database sources
+  - name: sales
+    database: SALES_DB
+    schema: RAW
+    tables:
+      - name: customers
+        description: Customer master data from sales system (original small dataset)
+      - name: orders
+        description: Order transactions (original small dataset)
+      - name: order_items
+        description: Line items for each order (original small dataset)
+      - name: products
+        description: Product catalog (original small dataset)
+      
+      # Large dataset tables (for expensive query testing)
+      - name: customers_large
+        description: Customer master data - 100K rows
+      - name: orders_large
+        description: Order transactions - 5M rows
+      - name: order_items_large
+        description: Line items for each order - 20M rows
+      - name: products_large
+        description: Product catalog - 50K rows
+  
+  # Analytics database sources
+  - name: analytics
+    database: ANALYTICS_DB
+    schema: RAW
+    tables:
+      - name: web_events
+        description: Clickstream and behavioral events (original small dataset)
+      - name: marketing_campaigns
+        description: Marketing campaign definitions
+      - name: campaign_attributions
+        description: Order attribution to campaigns
+      
+      # Large dataset tables (for expensive query testing)
+      - name: web_events_large
+        description: Clickstream and behavioral events - 10M rows
+      - name: time_series_metrics
+        description: Time series monitoring data - 50M rows
+      - name: user_interactions
+        description: User-to-user interactions - 30M rows
+      - name: product_views
+        description: Product view events - 100M rows (THE BIG ONE!)
+  
+  # Reference database sources
+  - name: reference
+    database: REFERENCE_DB
+    schema: RAW
+    tables:
+      - name: geography
+        description: Geographic lookup data
+      - name: product_categories
+        description: Product category hierarchy
+      - name: date_dimension
+        description: Date dimension table
+
