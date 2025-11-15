@@ -1,6 +1,7 @@
 """
 Cost estimation engine for dbt models on Snowflake
 """
+
 import re
 import json
 import yaml
@@ -160,14 +161,20 @@ class CostEstimator:
                 if node.get("resource_type") == "model":
                     # Try to get compiled SQL from compiled file if not in manifest
                     compiled_sql = node.get("compiled_sql") or node.get("raw_sql")
-                    
+
                     if not compiled_sql:
                         # Read from compiled file
-                        compiled_path = self.project_dir / "target" / "compiled" / node.get("package_name", "example_project") / node.get("original_file_path", "")
+                        compiled_path = (
+                            self.project_dir
+                            / "target"
+                            / "compiled"
+                            / node.get("package_name", "example_project")
+                            / node.get("original_file_path", "")
+                        )
                         if compiled_path.exists():
                             with open(compiled_path, "r") as cf:
                                 compiled_sql = cf.read()
-                    
+
                     models_list.append(
                         {
                             "unique_id": node_id,
@@ -213,7 +220,7 @@ class CostEstimator:
         """
         model_name = model.get("name")
         sql = model.get("compiled_sql") or model.get("raw_sql", "")
-        
+
         logger.debug(f"[{model_name}] SQL length = {len(sql) if sql else 0} characters")
         if sql and len(sql) > 0:
             logger.debug(f"[{model_name}] SQL preview: {sql[:300]}")
@@ -250,16 +257,20 @@ class CostEstimator:
         # Calculate cost
         warehouse_name = self.target_config.get("warehouse", "")
         warehouse_size = self._get_warehouse_size(warehouse_name)
-        
+
         # Check if warehouse_credits_per_hour is explicitly set in config
         # (useful for demos or simulating different warehouse sizes)
         if "warehouse_credits_per_hour" in self.config:
             credits_per_hour = self.config["warehouse_credits_per_hour"]
-            logger.debug(f"[{model_name}] Using configured warehouse credits: {credits_per_hour}/hour")
+            logger.debug(
+                f"[{model_name}] Using configured warehouse credits: {credits_per_hour}/hour"
+            )
         else:
             credits_per_hour = get_warehouse_credits_per_hour(warehouse_size)
-            logger.debug(f"[{model_name}] Using detected warehouse size {warehouse_size}: {credits_per_hour}/hour")
-        
+            logger.debug(
+                f"[{model_name}] Using detected warehouse size {warehouse_size}: {credits_per_hour}/hour"
+            )
+
         cost_per_credit = self.config.get("cost_per_credit", 3.0)
 
         # Apply per-minute billing rules
@@ -267,7 +278,7 @@ class CostEstimator:
 
         # Cost = (time in hours) * (credits per hour) * (cost per credit)
         estimated_cost = (billable_time / 3600.0) * credits_per_hour * cost_per_credit
-        
+
         # Apply cache probability discount
         if cache_probability > 0.8:
             # Very likely to hit cache - cost is essentially free
@@ -277,13 +288,13 @@ class CostEstimator:
             # Likely to hit cache - reduce cost significantly
             estimated_cost *= 0.1
             logger.debug(f"[{model_name}] Cache hit likely, cost reduced by 90%")
-        
+
         # Calculate "scaled cost" - what this WOULD cost on 100x data
         # This helps identify expensive patterns even on small datasets
         scaled_time = estimated_time * max(1.0, (complexity_score / 20.0))  # Scale by complexity
         scaled_billable_time = self._apply_billing_rules(scaled_time)
         scaled_cost = (scaled_billable_time / 3600.0) * credits_per_hour * cost_per_credit
-        
+
         # Determine if this model is "expensive" based on patterns
         is_expensive_pattern = (
             complexity_score > self.config.get("complexity_warning_threshold", 60)
@@ -304,14 +315,14 @@ class CostEstimator:
             "is_expensive_pattern": is_expensive_pattern,  # NEW: Flag for optimization
             "skipped": False,
         }
-    
+
     def _apply_billing_rules(self, time_seconds: float) -> float:
         """
         Apply Snowflake's per-minute billing with 60s minimum
-        
+
         Args:
             time_seconds: Estimated execution time in seconds
-            
+
         Returns:
             Billable time in seconds (rounded up to minutes)
         """
@@ -384,17 +395,17 @@ class CostEstimator:
         1. Try EXPLAIN plan (most accurate)
         2. Try historical query data (improves over time)
         3. Fall back to heuristics
-        
+
         Args:
             sql: SQL query text
             model: Model metadata
             complexity_score: Query complexity score
-            
+
         Returns:
             Estimated execution time in seconds
         """
         model_name = model.get("name")
-        
+
         # Layer 1: Try EXPLAIN plan
         if self.snowflake_utils:
             try:
@@ -404,7 +415,7 @@ class CostEstimator:
                     return self._estimate_from_explain(explain_data, complexity_score, sql)
             except Exception as e:
                 logger.debug(f"[{model_name}] EXPLAIN failed: {e}, trying historical data")
-        
+
         # Layer 2: Try historical query data
         if self.snowflake_utils:
             try:
@@ -414,40 +425,42 @@ class CostEstimator:
                     return self._estimate_from_history(history, complexity_score)
             except Exception as e:
                 logger.debug(f"[{model_name}] Historical data failed: {e}, using heuristics")
-        
+
         # Layer 3: Fall back to heuristic estimation
         logger.debug(f"[{model_name}] Using heuristic estimation")
         return self._estimate_from_heuristics(sql, model, complexity_score)
-    
-    def _estimate_from_explain(self, explain_data: Dict[str, Any], complexity_score: int, sql: str) -> float:
+
+    def _estimate_from_explain(
+        self, explain_data: Dict[str, Any], complexity_score: int, sql: str
+    ) -> float:
         """
         Estimate execution time from EXPLAIN plan data
-        
+
         Args:
             explain_data: Parsed EXPLAIN plan data
             complexity_score: Query complexity score
             sql: SQL query text (for detecting specific patterns)
-            
+
         Returns:
             Estimated execution time in seconds
         """
         bytes_scanned = explain_data.get("bytes_scanned_estimate", 0)
-        
+
         if bytes_scanned == 0:
             # No reliable data from EXPLAIN, fall back
             return 1.0
-        
+
         # Estimate based on bytes scanned
         # Snowflake MEDIUM warehouse: ~10-20 MB/sec for complex queries
         bytes_mb = bytes_scanned / (1024 * 1024)
         base_throughput_mbps = 15.0  # MB per second
-        
+
         # Adjust for complexity
         complexity_factor = max(complexity_score / 30.0, 1.0)
         adjusted_throughput = base_throughput_mbps / complexity_factor
-        
+
         time_estimate = bytes_mb / adjusted_throughput
-        
+
         # IMPORTANT: EXPLAIN plans often underestimate for complex queries!
         # Apply additional multipliers based on complexity score
         if complexity_score > 80:
@@ -458,67 +471,70 @@ class CostEstimator:
             # Medium-high complexity queries are 3-5x more expensive
             time_estimate *= 5.0
             logger.debug(f"Applied 5x multiplier for high complexity (>50)")
-        
+
         # 🔥 DETECT CARTESIAN PRODUCTS (CROSS JOIN)
         sql_upper = sql.upper()
         cross_join_count = sql_upper.count("CROSS JOIN")
         if cross_join_count > 0:
             # CROSS JOINs are CATASTROPHICALLY expensive!
-            time_estimate *= (100 ** cross_join_count)  # 100x per CROSS JOIN!
+            time_estimate *= 100**cross_join_count  # 100x per CROSS JOIN!
             logger.warning(f"⚠️  CARTESIAN PRODUCT DETECTED: {cross_join_count} CROSS JOIN(s)!")
-        
+
         # Apply multipliers for specific operations
         if explain_data.get("has_full_scan"):
             time_estimate *= 1.5
-        
-        if not explain_data.get("has_partition_pruning") and explain_data.get("partitions_scanned", 0) > 100:
+
+        if (
+            not explain_data.get("has_partition_pruning")
+            and explain_data.get("partitions_scanned", 0) > 100
+        ):
             time_estimate *= 1.3
-        
+
         # Minimum 1 second
         return max(time_estimate, 1.0)
-    
+
     def _estimate_from_history(self, history: Dict[str, Any], complexity_score: int) -> float:
         """
         Estimate execution time from historical query data
-        
+
         Args:
             history: Historical execution statistics
             complexity_score: Query complexity score
-            
+
         Returns:
             Estimated execution time in seconds
         """
         # Use median time as base (more robust than average)
         # Convert to float in case Snowflake returns Decimal
         median_time = float(history.get("median_time", 0) or 0)
-        
+
         if median_time == 0:
             return 1.0
-        
+
         # If we have enough history, use it directly
         run_count = int(history.get("run_count", 0) or 0)
         if run_count >= 5:
             # High confidence in historical data
             return max(median_time, 1.0)
-        
+
         # Low history count - adjust based on complexity
         # Assume historical query had average complexity of 30
         complexity_adjustment = float(complexity_score) / 30.0
         adjusted_time = median_time * complexity_adjustment
-        
+
         return max(adjusted_time, 1.0)
-    
+
     def _estimate_from_heuristics(
         self, sql: str, model: Dict[str, Any], complexity_score: int
     ) -> float:
         """
         Estimate execution time using heuristics (fallback method)
-        
+
         Args:
             sql: SQL query text
             model: Model metadata
             complexity_score: Query complexity score
-            
+
         Returns:
             Estimated execution time in seconds
         """
@@ -531,19 +547,21 @@ class CostEstimator:
                 # Get source tables from model dependencies instead of parsing SQL
                 # This is more reliable than regex parsing
                 table_refs = []
-                
+
                 # Get database and schema for lookups
                 database = model.get("database") or self.target_config.get("database")
                 schema_name = model.get("schema") or self.target_config.get("schema")
-                
-                logger.debug(f"[{model.get('name')}] Using database={database}, schema={schema_name}")
-                
+
+                logger.debug(
+                    f"[{model.get('name')}] Using database={database}, schema={schema_name}"
+                )
+
                 # Check if model has depends_on information
                 depends_on = model.get("depends_on", {})
                 nodes = depends_on.get("nodes", [])
-                
+
                 logger.debug(f"[{model.get('name')}] Depends on {len(nodes)} nodes")
-                
+
                 # Extract source tables from dependencies
                 for node_id in nodes:
                     if node_id.startswith("source."):
@@ -551,14 +569,16 @@ class CostEstimator:
                         parts = node_id.split(".")
                         if len(parts) >= 4:
                             source_schema = parts[2].upper()  # e.g., 'raw'
-                            source_table = parts[3].upper()   # e.g., 'users'
+                            source_table = parts[3].upper()  # e.g., 'users'
                             table_refs.append((database, source_schema, source_table))
-                            logger.debug(f"[{model.get('name')}] Added source table {database}.{source_schema}.{source_table}")
-                
+                            logger.debug(
+                                f"[{model.get('name')}] Added source table {database}.{source_schema}.{source_table}"
+                            )
+
                 if table_refs:
                     stats = self.snowflake_utils.get_table_statistics(table_refs)
                     logger.debug(f"[{model.get('name')}] Got stats for {len(stats)} tables")
-                    
+
                     # Calculate estimated data volume
                     for table_name, table_stats in stats.items():
                         # Convert to float in case Snowflake returns Decimal
@@ -566,84 +586,89 @@ class CostEstimator:
                         bytes_size = float(table_stats.get("bytes", 0) or 0)
                         estimated_rows_processed += rows
                         estimated_bytes_processed += bytes_size
-                        logger.debug(f"[{model.get('name')}] Table {table_name}: {rows} rows, {bytes_size} bytes")
-                    
-                    logger.debug(f"[{model.get('name')}] Total rows={estimated_rows_processed}, bytes={estimated_bytes_processed}")
+                        logger.debug(
+                            f"[{model.get('name')}] Table {table_name}: {rows} rows, {bytes_size} bytes"
+                        )
+
+                    logger.debug(
+                        f"[{model.get('name')}] Total rows={estimated_rows_processed}, bytes={estimated_bytes_processed}"
+                    )
             except Exception as e:
                 logger.warning(f"Could not get table statistics: {e}")
-        
+
         # If we have data statistics, use them for estimation
         if estimated_rows_processed > 0:
             # Base time calculation on data volume
             # Snowflake processes vary widely: 1k-100k rows/sec depending on query complexity
             # Use VERY conservative estimate for realistic costs, especially for complex queries
-            base_throughput = 2000  # rows per second (very conservative for complex queries with JOINs/windows)
-            
+            base_throughput = (
+                2000  # rows per second (very conservative for complex queries with JOINs/windows)
+            )
+
             # Adjust throughput based on complexity QUADRATICALLY (complexity hurts A LOT!)
             complexity_factor = max((complexity_score / 30.0) ** 1.5, 1.0)  # Exponential penalty
             adjusted_throughput = base_throughput / complexity_factor
-            
+
             time_from_rows = estimated_rows_processed / adjusted_throughput
-            
+
             # Also consider bytes (Snowflake MEDIUM ~10-20MB/sec for complex queries)
             if estimated_bytes_processed > 0:
                 bytes_mb = estimated_bytes_processed / (1024 * 1024)
                 time_from_bytes = bytes_mb / 10.0  # 10 MB/sec (conservative)
-                
+
                 # Use the larger estimate (more conservative)
                 time_estimate = max(time_from_rows, time_from_bytes)
             else:
                 time_estimate = time_from_rows
-            
+
             # Account for JOINs (multiplicative effect - JOINs are EXPONENTIALLY EXPENSIVE)
             sql_upper = sql.upper()
             join_count = sql_upper.count("JOIN")
-            
+
             # 🔥 DETECT CARTESIAN PRODUCTS (CROSS JOIN or JOIN without ON/USING)
             cross_join_count = sql_upper.count("CROSS JOIN")
             if cross_join_count > 0:
                 # CROSS JOINs are CATASTROPHICALLY expensive!
                 # Each CROSS JOIN multiplies the dataset by the size of the other table
                 # 3 tables = N * M * P rows (potentially trillions!)
-                time_estimate *= (100 ** cross_join_count)  # 100x per CROSS JOIN!
+                time_estimate *= 100**cross_join_count  # 100x per CROSS JOIN!
                 logger.warning(f"⚠️  CARTESIAN PRODUCT DETECTED: {cross_join_count} CROSS JOIN(s)!")
             elif join_count > 0:
                 # Regular JOINs are still expensive but not as catastrophic
                 # 5 JOINs should be ~10-20x slower
-                time_estimate *= (1.5 ** join_count)
-            
+                time_estimate *= 1.5**join_count
+
             # Account for aggregations (slower, especially with many groups)
             if "GROUP BY" in sql_upper:
                 time_estimate *= 3.0  # GROUP BY is VERY expensive
-            
+
             # Account for window functions (EXTREMELY expensive on large datasets!)
             if "OVER (" in sql_upper or "OVER(" in sql_upper:
                 window_count = len(re.findall(r"\bOVER\s*\(", sql_upper))
                 # Window functions require sorting/partitioning entire dataset
                 # Each window function is 5-10x slower, and they compound!
                 # 14 window functions should be EXTREMELY expensive
-                time_estimate *= (1 + (window_count * 5.0))  # Was 3.0, now 5.0
-            
+                time_estimate *= 1 + (window_count * 5.0)  # Was 3.0, now 5.0
+
             # Account for DISTINCT (full table scan + deduplication)
             if "DISTINCT" in sql_upper:
                 time_estimate *= 2.0  # Was 1.5, now 2.0
-            
+
             # Account for ORDER BY (sorting is expensive on large datasets)
             if "ORDER BY" in sql_upper:
                 order_by_count = sql_upper.count("ORDER BY")
-                time_estimate *= (1 + (order_by_count * 0.5))  # Multiple sorts compound
-            
+                time_estimate *= 1 + (order_by_count * 0.5)  # Multiple sorts compound
+
             # Minimum 1 second (Snowflake overhead)
             return max(time_estimate, 1.0)
-        
+
         # Fallback: heuristic estimation based on complexity only
         base_time = 5.0
         time_estimate = base_time * (complexity_score / 30.0)
-        
+
         # Large table scans
         sql_upper = sql.upper()
         if "SCAN" in sql_upper or "FULL" in sql_upper:
             time_estimate *= 1.5
 
         return max(time_estimate, 1.0)
-

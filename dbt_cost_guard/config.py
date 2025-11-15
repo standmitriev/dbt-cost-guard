@@ -1,6 +1,7 @@
 """
 Configuration management for dbt-cost-guard
 """
+
 import yaml
 import logging
 from pathlib import Path
@@ -50,17 +51,19 @@ def load_config(
         try:
             with open(cost_guard_config_path, "r") as f:
                 cost_guard_config = yaml.safe_load(f)
-            
+
             if cost_guard_config:
                 logger.debug(f"Loaded config from {cost_guard_config_path}")
-                
+
                 # Update top-level settings
                 if "cost_per_credit" in cost_guard_config:
                     config["cost_per_credit"] = cost_guard_config["cost_per_credit"]
-                
+
                 if "warehouse_credits_per_hour" in cost_guard_config:
-                    config["warehouse_credits_per_hour"] = cost_guard_config["warehouse_credits_per_hour"]
-                
+                    config["warehouse_credits_per_hour"] = cost_guard_config[
+                        "warehouse_credits_per_hour"
+                    ]
+
                 # Update thresholds
                 if "thresholds" in cost_guard_config:
                     thresholds = cost_guard_config["thresholds"]
@@ -68,15 +71,15 @@ def load_config(
                         config["warning_threshold_per_model"] = thresholds["per_model_warning"]
                     if "total_run_warning" in thresholds:
                         config["warning_threshold_total_run"] = thresholds["total_run_warning"]
-                
+
                 # Update estimation settings
                 if "estimation" in cost_guard_config:
                     config["estimation"].update(cost_guard_config["estimation"])
-                
+
                 # Store model overrides
                 if "model_overrides" in cost_guard_config:
                     config["model_overrides"] = cost_guard_config["model_overrides"]
-                
+
                 # Store skip models
                 if "skip_models" in cost_guard_config:
                     config["skip_models"] = cost_guard_config["skip_models"]
@@ -93,7 +96,7 @@ def load_config(
             # Look for cost_guard configuration in vars
             if "vars" in dbt_project and "cost_guard" in dbt_project["vars"]:
                 cost_guard_config = dbt_project["vars"]["cost_guard"]
-                
+
                 # Only update if not already customized by .dbt-cost-guard.yml
                 # Check if values are still at defaults (meaning .dbt-cost-guard.yml didn't set them)
                 if "cost_per_credit" in cost_guard_config:
@@ -103,10 +106,14 @@ def load_config(
                         pass
                     else:
                         config["cost_per_credit"] = cost_guard_config["cost_per_credit"]
-                
+
                 # Update other settings only if config file doesn't exist
                 if not cost_guard_config_path.exists():
-                    for key in ["warning_threshold_per_model", "warning_threshold_total_run", "enabled"]:
+                    for key in [
+                        "warning_threshold_per_model",
+                        "warning_threshold_total_run",
+                        "enabled",
+                    ]:
                         if key in cost_guard_config:
                             config[key] = cost_guard_config[key]
         except Exception as e:
@@ -126,23 +133,25 @@ def load_config(
 def get_model_threshold(config: Dict[str, Any], model_name: str) -> float:
     """
     Get cost threshold for a specific model, considering overrides
-    
+
     Args:
         config: Configuration dictionary
         model_name: Name of the dbt model
-        
+
     Returns:
         Cost threshold for this model
     """
     model_overrides = config.get("model_overrides", {})
-    
+
     # Check each override pattern
     for pattern, override_config in model_overrides.items():
         if fnmatch.fnmatch(model_name, pattern):
             if "threshold" in override_config:
-                logger.debug(f"Using override threshold for {model_name}: ${override_config['threshold']}")
+                logger.debug(
+                    f"Using override threshold for {model_name}: ${override_config['threshold']}"
+                )
                 return override_config["threshold"]
-    
+
     # Fall back to default
     return config.get("warning_threshold_per_model", 5.0)
 
@@ -150,21 +159,21 @@ def get_model_threshold(config: Dict[str, Any], model_name: str) -> float:
 def should_skip_model(config: Dict[str, Any], model_name: str) -> bool:
     """
     Check if a model should be skipped based on configuration
-    
+
     Args:
         config: Configuration dictionary
         model_name: Name of the dbt model
-        
+
     Returns:
         True if model should be skipped
     """
     skip_patterns = config.get("skip_models", [])
-    
+
     for pattern in skip_patterns:
         if fnmatch.fnmatch(model_name, pattern):
             logger.debug(f"Skipping model {model_name} (matches pattern: {pattern})")
             return True
-    
+
     return False
 
 
@@ -197,4 +206,3 @@ def get_warehouse_credits_per_hour(warehouse_size: str) -> int:
     }
 
     return size_to_credits.get(warehouse_size, 2)  # Default to SMALL
-

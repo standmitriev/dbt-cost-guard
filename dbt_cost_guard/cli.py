@@ -1,6 +1,7 @@
 """
 CLI interface for dbt-cost-guard
 """
+
 import sys
 import subprocess
 import logging
@@ -26,53 +27,54 @@ def display_long_term_projections(total_cost: float):
     weekly = total_cost * 7
     monthly = total_cost * 30
     yearly = total_cost * 365
-    
+
     # Different run frequency scenarios
     twice_daily = total_cost * 2 * 365
     hourly = total_cost * 24 * 365
-    
+
     projection_table = Table(show_header=True, box=None, padding=(0, 2))
     projection_table.add_column("Frequency", style="cyan")
     projection_table.add_column("Cost", style="bold")
     projection_table.add_column("Annual", style="yellow")
-    
+
     projection_table.add_row("Per Run", f"${total_cost:.2f}", "—")
     projection_table.add_row("Daily (1×)", f"${daily:.2f}", f"${yearly:.2f}/year")
     projection_table.add_row("Twice Daily", f"${daily * 2:.2f}/day", f"${twice_daily:.2f}/year")
     projection_table.add_row("Hourly (24×)", f"${hourly / 365:.2f}/day", f"${hourly:.2f}/year")
     projection_table.add_row("Weekly", f"${weekly:.2f}", f"${weekly * 52:.2f}/year")
     projection_table.add_row("Monthly", f"${monthly:.2f}", f"${monthly * 12:.2f}/year")
-    
-    console.print(Panel(
-        projection_table,
-        title="[bold cyan]💰 Long-Term Cost Projections[/bold cyan]",
-        border_style="cyan"
-    ))
-    
+
+    console.print(
+        Panel(
+            projection_table,
+            title="[bold cyan]💰 Long-Term Cost Projections[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+
     # Add savings comparison
     if total_cost > 10:
         savings_table = Table(show_header=False, box=None, padding=(0, 2))
         savings_table.add_column("Metric", style="cyan")
         savings_table.add_column("Value", style="bold green")
-        
+
         # Calculate what you'd save with a smaller warehouse
         smaller_cost = total_cost / 8  # Assuming 3X-Large vs X-Small (8x difference)
         annual_savings = (total_cost - smaller_cost) * 365
-        
-        savings_table.add_row(
-            "💡 Potential Annual Savings",
-            f"${annual_savings:.2f}"
-        )
+
+        savings_table.add_row("💡 Potential Annual Savings", f"${annual_savings:.2f}")
         savings_table.add_row(
             "   (using X-Small instead)",
-            f"Reduce daily cost: ${total_cost:.2f} → ${smaller_cost:.2f}"
+            f"Reduce daily cost: ${total_cost:.2f} → ${smaller_cost:.2f}",
         )
-        
-        console.print(Panel(
-            savings_table,
-            title="[bold green]💵 Cost Optimization Opportunity[/bold green]",
-            border_style="green"
-        ))
+
+        console.print(
+            Panel(
+                savings_table,
+                title="[bold green]💵 Cost Optimization Opportunity[/bold green]",
+                border_style="green",
+            )
+        )
 
 
 @click.group(invoke_without_command=True)
@@ -124,19 +126,15 @@ def cli(
     verbose: bool,
 ):
     """dbt Cost Guard - Estimate Snowflake query costs before running dbt"""
-    
+
     # Configure logging based on verbose flag
     if verbose:
         logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
     else:
-        logging.basicConfig(
-            level=logging.WARNING,
-            format='%(levelname)s: %(message)s'
-        )
-    
+        logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
     ctx.ensure_object(dict)
     ctx.obj["project_dir"] = Path(project_dir).resolve()
     ctx.obj["profiles_dir"] = Path(profiles_dir).resolve() if profiles_dir else None
@@ -187,13 +185,13 @@ def run(ctx, models, select, exclude, full_refresh, fail_fast, threads, force, d
     if threads:
         dbt_cmd.extend(["--threads", str(threads)])
     dbt_cmd.extend(["--project-dir", str(project_dir)])
-    
+
     if profiles_dir:
         dbt_cmd.extend(["--profiles-dir", str(profiles_dir)])
     else:
         # Use project directory as profiles directory by default
         dbt_cmd.extend(["--profiles-dir", str(project_dir)])
-    
+
     dbt_cmd.extend(dbt_args)
 
     if skip_cost_check:
@@ -225,9 +223,7 @@ def run(ctx, models, select, exclude, full_refresh, fail_fast, threads, force, d
     # Get models to run
     try:
         with console.status("[bold blue]Compiling dbt models..."):
-            models_to_run = estimator.get_models_to_run(
-                models=models or select, exclude=exclude
-            )
+            models_to_run = estimator.get_models_to_run(models=models or select, exclude=exclude)
 
         if not models_to_run:
             console.print("[yellow]No models to run[/yellow]")
@@ -253,7 +249,7 @@ def run(ctx, models, select, exclude, full_refresh, fail_fast, threads, force, d
     # Display cost breakdown
     total_cost = sum(est["estimated_cost"] for est in cost_estimates)
     _display_cost_breakdown(cost_estimates, total_cost, config)
-    
+
     # Display long-term projections
     console.print()
     display_long_term_projections(total_cost)
@@ -297,9 +293,7 @@ def run(ctx, models, select, exclude, full_refresh, fail_fast, threads, force, d
             console.print("[red]❌ Run cancelled by user[/red]")
             sys.exit(0)
     else:
-        console.print(
-            f"\n[green]✓ Estimated cost (${total_cost:.2f}) is within threshold[/green]"
-        )
+        console.print(f"\n[green]✓ Estimated cost (${total_cost:.2f}) is within threshold[/green]")
 
     # Run dbt
     console.print("\n[bold blue]Running dbt...[/bold blue]\n")
@@ -318,7 +312,7 @@ def analyze(ctx, model):
     """Analyze cost breakdown for a specific model with detailed information"""
     import re
     from rich.panel import Panel
-    
+
     project_dir = ctx.obj["project_dir"]
     profiles_dir = ctx.obj["profiles_dir"]
 
@@ -344,7 +338,7 @@ def analyze(ctx, model):
     try:
         with console.status(f"[bold blue]Analyzing model: {model}..."):
             all_models = estimator.get_models_to_run()
-            
+
             # Filter to exact match or substring match
             models_to_run = [m for m in all_models if m["name"] == model or model in m["name"]]
 
@@ -356,7 +350,9 @@ def analyze(ctx, model):
             return
 
         if len(models_to_run) > 1:
-            console.print(f"[yellow]Multiple models found matching '{model}', showing exact match or first[/yellow]")
+            console.print(
+                f"[yellow]Multiple models found matching '{model}', showing exact match or first[/yellow]"
+            )
             # Prefer exact match
             exact_match = [m for m in models_to_run if m["name"] == model]
             if exact_match:
@@ -376,6 +372,7 @@ def analyze(ctx, model):
     except Exception as e:
         console.print(f"[red]Error estimating cost: {e}[/red]")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
@@ -442,7 +439,7 @@ def analyze(ctx, model):
     sql = model_data.get("compiled_sql", "")
     if sql:
         sql_upper = sql.upper()
-        
+
         # Count features
         join_count = len(re.findall(r"\bJOIN\b", sql_upper))
         window_count = len(re.findall(r"\bOVER\s*\(", sql_upper))
@@ -465,12 +462,14 @@ def analyze(ctx, model):
         analysis_table.add_row("DISTINCT", "✓" if has_distinct else "✗")
         analysis_table.add_row("ORDER BY", "✓" if has_order_by else "✗")
 
-        console.print(Panel(analysis_table, title="[bold]Query Analysis[/bold]", border_style="cyan"))
+        console.print(
+            Panel(analysis_table, title="[bold]Query Analysis[/bold]", border_style="cyan")
+        )
 
     # Dependencies
     depends_on = model_data.get("depends_on", {})
     nodes = depends_on.get("nodes", [])
-    
+
     if nodes:
         console.print(f"\n[bold cyan]📦 Dependencies ({len(nodes)}):[/bold cyan]")
         for node_id in nodes:
@@ -489,22 +488,30 @@ def analyze(ctx, model):
 
     if cost > config.get("warning_threshold_per_model", 5.0):
         recommendations.append("[red]⚠️  High cost detected! Consider optimizing this model.[/red]")
-    
+
     if window_count > 10:
-        recommendations.append(f"[yellow]→ {window_count} window functions detected. Consider materializing intermediate results.[/yellow]")
-    
+        recommendations.append(
+            f"[yellow]→ {window_count} window functions detected. Consider materializing intermediate results.[/yellow]"
+        )
+
     if join_count > 5:
-        recommendations.append(f"[yellow]→ {join_count} JOINs detected. Verify all joins are necessary and indexed.[/yellow]")
-    
+        recommendations.append(
+            f"[yellow]→ {join_count} JOINs detected. Verify all joins are necessary and indexed.[/yellow]"
+        )
+
     if complexity > 80:
-        recommendations.append("[yellow]→ Very complex query. Consider breaking into multiple models.[/yellow]")
-    
+        recommendations.append(
+            "[yellow]→ Very complex query. Consider breaking into multiple models.[/yellow]"
+        )
+
     if time_seconds > 3600:
-        recommendations.append("[yellow]→ Estimated runtime > 1 hour. Consider incremental materialization.[/yellow]")
-    
+        recommendations.append(
+            "[yellow]→ Estimated runtime > 1 hour. Consider incremental materialization.[/yellow]"
+        )
+
     if not recommendations:
         recommendations.append("[green]✓ No optimization issues detected.[/green]")
-    
+
     for rec in recommendations:
         console.print(f"  {rec}")
 
@@ -542,9 +549,7 @@ def estimate(ctx, models, select, exclude):
     # Get models to estimate
     try:
         with console.status("[bold blue]Compiling dbt models..."):
-            models_to_run = estimator.get_models_to_run(
-                models=models or select, exclude=exclude
-            )
+            models_to_run = estimator.get_models_to_run(models=models or select, exclude=exclude)
 
         if not models_to_run:
             console.print("[yellow]No models found[/yellow]")
@@ -568,7 +573,7 @@ def estimate(ctx, models, select, exclude):
     # Display results
     total_cost = sum(est["estimated_cost"] for est in cost_estimates)
     _display_cost_breakdown(cost_estimates, total_cost, config)
-    
+
     # Display long-term projections
     console.print()
     display_long_term_projections(total_cost)
@@ -585,21 +590,15 @@ def config(ctx):
         cfg = load_config(project_dir)
         console.print(Panel("[bold]dbt Cost Guard Configuration[/bold]"))
         console.print(f"  Cost per credit: ${cfg.get('cost_per_credit', 3.0):.2f}")
-        console.print(
-            f"  Per-model threshold: ${cfg.get('warning_threshold_per_model', 5.0):.2f}"
-        )
-        console.print(
-            f"  Total run threshold: ${cfg.get('warning_threshold_total_run', 5.0):.2f}"
-        )
+        console.print(f"  Per-model threshold: ${cfg.get('warning_threshold_per_model', 5.0):.2f}")
+        console.print(f"  Total run threshold: ${cfg.get('warning_threshold_total_run', 5.0):.2f}")
         console.print(f"  Project directory: {project_dir}")
     except Exception as e:
         console.print(f"[red]Error loading configuration: {e}[/red]")
         sys.exit(1)
 
 
-def _display_cost_breakdown(
-    cost_estimates: List[dict], total_cost: float, config: dict
-) -> None:
+def _display_cost_breakdown(cost_estimates: List[dict], total_cost: float, config: dict) -> None:
     """Display cost breakdown table"""
     per_model_threshold = config.get("warning_threshold_per_model", 1.0)
     complexity_threshold = config.get("complexity_warning_threshold", 60)
@@ -613,7 +612,7 @@ def _display_cost_breakdown(
     table.add_column("Status", justify="center")
 
     expensive_models = []  # Track models that need optimization
-    
+
     for est in cost_estimates:
         cost = est["estimated_cost"]
         scaled_cost = est.get("scaled_cost", cost)
@@ -640,7 +639,7 @@ def _display_cost_breakdown(
             cost_str = f"[yellow]${cost:.2f}[/yellow]"
         else:
             cost_str = f"[green]${cost:.2f}[/green]"
-        
+
         # Color code scaled cost
         if scaled_cost > 50.0:
             scaled_str = f"[red bold]${scaled_cost:.2f}[/red bold]"
@@ -680,18 +679,24 @@ def _display_cost_breakdown(
     )
 
     console.print(table)
-    
+
     # Show optimization recommendations for expensive models
     if expensive_models:
         console.print()
-        console.print(Panel(
-            f"[bold yellow]⚠️  {len(expensive_models)} model(s) need optimization[/bold yellow]\n\n"
-            "These queries have expensive patterns that will be costly on production data:\n" +
-            "\n".join([f"  • {m['model_name']} (complexity: {m['complexity_score']}, scaled cost: ${m.get('scaled_cost', 0):.2f})"
-                      for m in expensive_models[:5]]),
-            title="[bold red]Optimization Recommendations[/bold red]",
-            border_style="yellow"
-        ))
+        console.print(
+            Panel(
+                f"[bold yellow]⚠️  {len(expensive_models)} model(s) need optimization[/bold yellow]\n\n"
+                "These queries have expensive patterns that will be costly on production data:\n"
+                + "\n".join(
+                    [
+                        f"  • {m['model_name']} (complexity: {m['complexity_score']}, scaled cost: ${m.get('scaled_cost', 0):.2f})"
+                        for m in expensive_models[:5]
+                    ]
+                ),
+                title="[bold red]Optimization Recommendations[/bold red]",
+                border_style="yellow",
+            )
+        )
         console.print("\nRun 'dbt-cost-guard analyze -m MODEL_NAME' for detailed recommendations.")
 
 
@@ -715,4 +720,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

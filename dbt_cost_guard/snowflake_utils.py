@@ -1,6 +1,7 @@
 """
 Snowflake utilities for cost estimation
 """
+
 import re
 import logging
 from typing import Dict, List, Optional, Tuple, Any
@@ -148,25 +149,25 @@ class SnowflakeUtils:
     def get_explain_plan(self, sql: str) -> Optional[Dict[str, Any]]:
         """
         Execute EXPLAIN and parse the results for cost estimation
-        
+
         Args:
             sql: SQL query to explain
-            
+
         Returns:
             Dictionary with parsed EXPLAIN data or None if failed
         """
         self.connect()
         cursor = self.conn.cursor()
-        
+
         try:
             # Execute EXPLAIN USING TEXT
             explain_query = f"EXPLAIN USING TEXT {sql}"
             cursor.execute(explain_query)
             explain_output = cursor.fetchall()
-            
+
             if not explain_output:
                 return None
-            
+
             # Parse the text output
             parsed_data = {
                 "bytes_scanned_estimate": 0,
@@ -175,68 +176,70 @@ class SnowflakeUtils:
                 "operation_costs": [],
                 "has_full_scan": False,
             }
-            
+
             for row in explain_output:
                 line = str(row[0]) if row else ""
                 line_upper = line.upper()
-                
+
                 # Look for bytes scanned indicators
                 if "BYTES" in line_upper or "SIZE" in line_upper:
                     # Try to extract numeric values
-                    numbers = re.findall(r'(\d+\.?\d*)\s*(?:MB|GB|KB|BYTES)', line_upper)
+                    numbers = re.findall(r"(\d+\.?\d*)\s*(?:MB|GB|KB|BYTES)", line_upper)
                     for num_str in numbers:
                         try:
                             num = float(num_str)
                             # Convert to bytes
                             if "GB" in line_upper:
-                                parsed_data["bytes_scanned_estimate"] += int(num * 1024 * 1024 * 1024)
+                                parsed_data["bytes_scanned_estimate"] += int(
+                                    num * 1024 * 1024 * 1024
+                                )
                             elif "MB" in line_upper:
                                 parsed_data["bytes_scanned_estimate"] += int(num * 1024 * 1024)
                             elif "KB" in line_upper:
                                 parsed_data["bytes_scanned_estimate"] += int(num * 1024)
                         except:
                             pass
-                
+
                 # Check for partition pruning
                 if "PARTITION" in line_upper and "PRUNE" in line_upper:
                     parsed_data["has_partition_pruning"] = True
-                
+
                 # Check for full table scans
                 if "TABLE SCAN" in line_upper or "FULL SCAN" in line_upper:
                     parsed_data["has_full_scan"] = True
-                
+
                 # Count partitions
                 if "PARTITIONS" in line_upper:
-                    numbers = re.findall(r'(\d+)\s*PARTITIONS', line_upper)
+                    numbers = re.findall(r"(\d+)\s*PARTITIONS", line_upper)
                     for num_str in numbers:
                         try:
                             parsed_data["partitions_scanned"] += int(num_str)
                         except:
                             pass
-            
+
             logger.debug(f"EXPLAIN plan parsed: {parsed_data}")
             return parsed_data
-            
+
         except Exception as e:
             logger.debug(f"Could not get EXPLAIN plan: {e}")
             return None
         finally:
             cursor.close()
-    
+
     def get_model_history(self, model_name: str, days: int = 30) -> Optional[Dict[str, Any]]:
         """
         Query QUERY_HISTORY for actual execution stats for a specific model
-        
+
         Args:
             model_name: Name of the dbt model
             days: How many days of history to query
-            
+
         Returns:
             Dictionary with historical execution stats or None
         """
         self.connect()
         cursor = self.conn.cursor()
-        
+
         try:
             query = f"""
             SELECT 
@@ -252,10 +255,10 @@ class SnowflakeUtils:
             AND START_TIME >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
             AND QUERY_TYPE IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE_TABLE_AS_SELECT', 'MERGE')
             """
-            
+
             cursor.execute(query)
             result = cursor.fetchone()
-            
+
             if result and result[3] > 0:  # run_count > 0
                 return {
                     "avg_time": result[0] or 0,
@@ -265,32 +268,32 @@ class SnowflakeUtils:
                     "max_time": result[4] or 0,
                     "min_time": result[5] or 0,
                 }
-            
+
             return None
-            
+
         except Exception as e:
             logger.debug(f"Could not get model history: {e}")
             return None
         finally:
             cursor.close()
-    
+
     def check_cache_probability(self, sql: str) -> float:
         """
         Check if query is likely to hit Snowflake's result cache (24hr window)
-        
+
         Args:
             sql: SQL query text
-            
+
         Returns:
             Probability between 0.0 and 1.0
         """
         self.connect()
         cursor = self.conn.cursor()
-        
+
         try:
             # Normalize SQL for comparison (remove whitespace variations)
             normalized_sql = " ".join(sql.split())
-            
+
             query = """
             SELECT COUNT(*) as cache_hits
             FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY
@@ -298,10 +301,10 @@ class SnowflakeUtils:
             AND START_TIME >= DATEADD(hour, -24, CURRENT_TIMESTAMP())
             AND EXECUTION_STATUS = 'SUCCESS'
             """
-            
+
             cursor.execute(query, (normalized_sql,))
             result = cursor.fetchone()
-            
+
             if result and result[0]:
                 cache_hits = result[0]
                 # If query ran recently, high probability of cache hit
@@ -311,9 +314,9 @@ class SnowflakeUtils:
                     return 0.7
                 elif cache_hits >= 1:
                     return 0.5
-            
+
             return 0.0
-            
+
         except Exception as e:
             logger.debug(f"Could not check cache probability: {e}")
             return 0.0
@@ -399,7 +402,9 @@ class SnowflakeUtils:
         return tables
 
     @staticmethod
-    def parse_table_reference(table_ref: str, default_database: str, default_schema: str) -> Tuple[str, str, str]:
+    def parse_table_reference(
+        table_ref: str, default_database: str, default_schema: str
+    ) -> Tuple[str, str, str]:
         """
         Parse a table reference into database, schema, table components
 
@@ -419,4 +424,3 @@ class SnowflakeUtils:
             return default_database, parts[0], parts[1]
         else:
             return default_database, default_schema, parts[0]
-

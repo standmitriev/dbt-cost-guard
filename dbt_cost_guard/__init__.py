@@ -9,4 +9,3 @@ from dbt_cost_guard.estimator import CostEstimator
 from dbt_cost_guard.snowflake_utils import SnowflakeUtils
 
 __all__ = ["CostEstimator", "SnowflakeUtils"]
-
